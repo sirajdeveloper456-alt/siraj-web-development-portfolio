@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metro Dash</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      overflow: hidden;
+      background: #071827;
+      color: white;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: linear-gradient(#082c47, #071827);
+    }
+
+    #hud {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92%, 760px);
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      z-index: 3;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: rgba(3, 16, 28, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      box-shadow: 0 5px 18px rgba(0, 0, 0, 0.25);
+    }
+
+    #menu {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      z-index: 5;
+      background: rgba(2, 10, 18, 0.35);
+    }
+
+    .panel {
+      width: min(92vw, 430px);
+      padding: 34px 25px;
+      text-align: center;
+      border-radius: 24px;
+      background: linear-gradient(145deg, #16496a, #0b263d);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    h1 {
+      color: #ffe34d;
+      font-size: clamp(34px, 9vw, 58px);
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-shadow: 0 4px 0 #9a5c10;
+    }
+
+    #subtitle {
+      color: #d6e8f2;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      font: inherit;
+      font-weight: bold;
+    }
+
+    #start {
+      width: 100%;
+      padding: 15px 20px;
+      border-radius: 14px;
+      color: #231300;
+      background: linear-gradient(#ffdb4b, #ff8b18);
+      box-shadow: 0 7px 0 #a9500c;
+      transition: 0.15s;
+    }
+
+    #start:active {
+      transform: translateY(5px);
+      box-shadow: 0 2px 0 #a9500c;
+    }
+
+    #hint {
+      margin-top: 24px;
+      color: #c1d8e5;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    #touchControls {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 22px;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .pad {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .control {
+      width: 58px;
+      height: 58px;
+      border-radius: 17px;
+      color: white;
+      background: rgba(4, 20, 34, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 0 7px 18px rgba(0, 0, 0, 0.25);
+      font-size: 24px;
+    }
+
+    .control:active {
+      transform: scale(0.92);
+      background: #f39a20;
+    }
+
+    @media (min-width: 800px) {
+      #touchControls {
+        opacity: 0.45;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="pill">⭐ SCORE: <span id="score">0</span></div>
+    <div class="pill">🪙 COINS: <span id="coins">0</span></div>
+    <div class="pill">🏆 BEST: <span id="best">0</span></div>
+  </div>
+
+  <div id="menu">
+    <div class="panel">
+      <h1 id="title">METRO DASH</h1>
+
+      <p id="subtitle">
+        Run along the tracks, collect coins and dodge the trains!
+      </p>
+
+      <button id="start">START RUN</button>
+
+      <div id="hint">
+        <b>KEYBOARD</b><br />
+        ← → Change Lane<br />
+        ↑ / SPACE Jump<br />
+        ↓ Slide<br /><br />
+        On mobile, use the buttons or swipe.
+      </div>
+    </div>
+  </div>
+
+  <div id="touchControls">
+    <div class="pad">
+      <button class="control" data-action="left">◀</button>
+      <button class="control" data-action="right">▶</button>
+    </div>
+
+    <div class="pad">
+      <button class="control" data-action="jump">⬆</button>
+      <button class="control" data-action="slide">⬇</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const menu = document.getElementById("menu");
+    const startButton = document.getElementById("start");
+    const title = document.getElementById("title");
+    const subtitle = document.getElementById("subtitle");
+    const hint = document.getElementById("hint");
+
+    const scoreElement = document.getElementById("score");
+    const coinsElement = document.getElementById("coins");
+    const bestElement = document.getElementById("best");
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+
+    let running = false;
+    let gameOver = false;
+    let lastTime = 0;
+    let spawnTimer = 0;
+    let coinTimer = 0;
+    let score = 0;
+    let coins = 0;
+    let speed = 330;
+    let roadOffset = 0;
+
+    let best = Number(localStorage.getItem("metroDashBest") || 0);
+    bestElement.textContent = best;
+
+    const player = {
+      lane: 1,
+      x: 0,
+      y: 0,
+      jumpVelocity: 0,
+      jumping: false,
+      sliding: false,
+      slideTime: 0
+    };
+
+    const obstacles = [];
+    const coinItems = [];
+    const particles = [];
+
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+      player.y = groundY();
+      player.x = laneX(player.lane);
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    function groundY() {
+      return height * 0.78;
+    }
+
+    function laneGap() {
+      return Math.min(125, width * 0.22);
+    }
+
+    function laneX(lane) {
+      return width / 2 + (lane - 1) * laneGap();
+    }
+
+    function updateHUD() {
+      scoreElement.textContent = Math.floor(score);
+      coinsElement.textContent = coins;
+      bestElement.textContent = best;
+    }
+
+    function startGame() {
+      running = true;
+      gameOver = false;
+      menu.style.display = "none";
+
+      score = 0;
+      coins = 0;
+      speed = 330;
+      spawnTimer = 0.7;
+      coinTimer = 0.3;
+      roadOffset = 0;
+
+      obstacles.length = 0;
+      coinItems.length = 0;
+      particles.length = 0;
+
+      player.lane = 1;
+      player.x = laneX(1);
+      player.y = groundY();
+      player.jumpVelocity = 0;
+      player.jumping = false;
+      player.sliding = false;
+      player.slideTime = 0;
+
+      updateHUD();
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function endGame() {
+      running = false;
+      gameOver = true;
+
+      const finalScore = Math.floor(score);
+
+      if (finalScore > best) {
+        best = finalScore;
+        localStorage.setItem("metroDashBest", best);
+      }
+
+      updateHUD();
+
+      title.textContent = "RUN OVER!";
+      subtitle.innerHTML = `Your score: <b>${finalScore}</b><br />Coins collected: <b>${coins}</b>`;
+      startButton.textContent = "PLAY AGAIN";
+      hint.innerHTML = "Use the controls to dodge obstacles and beat your best score.";
+      menu.style.display = "grid";
+    }
+
+    function moveLeft() {
+      if (!running) return;
+      player.lane = Math.max(0, player.lane - 1);
+    }
+
+    function moveRight() {
+      if (!running) return;
+      player.lane = Math.min(2, player.lane + 1);
+    }
+
+    function jump() {
+      if (!running || player.jumping || player.sliding) return;
+
+      player.jumping = true;
+      player.jumpVelocity = -760;
+    }
+
+    function slide() {
+      if (!running || player.jumping) return;
+
+      player.sliding = true;
+      player.slideTime = 0.65;
+    }
+
+    function handleAction(action) {
+      if (action === "left") moveLeft();
+      if (action === "right") moveRight();
+      if (action === "jump") jump();
+      if (action === "slide") slide();
+    }
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        moveLeft();
+      }
+
+      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        moveRight();
+      }
+
+      if (event.key === "ArrowUp" || event.key === " ") {
+        event.preventDefault();
+        jump();
+      }
+
+      if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        slide();
+      }
+
+      if (event.key === "Enter" && !running) {
+        startGame();
+      }
+    });
+
+    document.querySelectorAll(".control").forEach(button => {
+      button.addEventListener("pointerdown", () => {
+        handleAction(button.dataset.action);
+      });
+    });
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    canvas.addEventListener("touchstart", event => {
+      const touch = event.changedTouches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }, { passive: true });
+
+    canvas.addEventListener("touchend", event => {
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
+        dx > 0 ? moveRight() : moveLeft();
+      } else if (Math.abs(dy) > 30) {
+        dy < 0 ? jump() : slide();
+      }
+    }, { passive: true });
+
+    startButton.addEventListener("click", startGame);
+
+    function spawnObstacle() {
+      const lane = Math.floor(Math.random() * 3);
+      const random = Math.random();
+
+      let type = "barrier";
+
+      if (random > 0.65) {
+        type = "train";
+      } else if (random > 0.42) {
+        type = "gate";
+      }
+
+      obstacles.push({
+        lane,
+        x: laneX(lane),
+        y: -100,
+        type,
+        width: type === "train" ? 70 : 62,
+        height: type === "train" ? 100 : 48
+      });
+    }
+
+    function spawnCoins() {
+      const lane = Math.floor(Math.random() * 3);
+
+      for (let i = 0; i < 4; i++) {
+        coinItems.push({
+          lane,
+          x: laneX(lane),
+          y: -40 - i * 55,
+          radius: 13,
+          rotation: 0
+        });
+      }
+    }
+
+    function createParticle(x, y, color) {
+      particles.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 100,
+        vy: -Math.random() * 120,
+        life: 0.5,
+        color
+      });
+    }
+
+    function update(dt) {
+      score += dt * 12;
+      speed = Math.min(720, 330 + score * 2.2);
+      roadOffset += speed * dt;
+
+      player.x += (laneX(player.lane) - player.x) * Math.min(1, dt * 12);
+
+      if (player.jumping) {
+        player.y += player.jumpVelocity * dt;
+        player.jumpVelocity += 1900 * dt;
+
+        if (player.y >= groundY()) {
+          player.y = groundY();
+          player.jumping = false;
+          player.jumpVelocity = 0;
+
+          for (let i = 0; i < 8; i++) {
+            createParticle(player.x, player.y, "#ffd447");
+          }
+        }
+      }
+
+      if (player.sliding) {
+        player.slideTime -= dt;
+
+        if (player.slideTime <= 0) {
+          player.sliding = false;
+        }
+      }
+
+      spawnTimer -= dt;
+      coinTimer -= dt;
+
+      if (spawnTimer <= 0) {
+        spawnObstacle();
+        spawnTimer = Math.max(0.58, 1.15 - score / 600);
+      }
+
+      if (coinTimer <= 0) {
+        spawnCoins();
+        coinTimer = 2.5;
+      }
+
+      for (const obstacle of obstacles) {
+        obstacle.y += speed * dt;
+      }
+
+      for (const coin of coinItems) {
+        coin.y += speed * dt;
+        coin.rotation += dt * 7;
+      }
+
+      for (const particle of particles) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vy += 300 * dt;
+        particle.life -= dt;
+      }
+
+      checkCollisions();
+
+      while (obstacles.length && obstacles[0].y > height + 150) {
+        obstacles.shift();
+      }
+
+      while (coinItems.length && coinItems[0].y > height + 80) {
+        coinItems.shift();
+      }
+
+      while (particles.length && particles[0].life <= 0) {
+        particles.shift();
+      }
+
+      updateHUD();
+    }
+
+    function checkCollisions() {
+      const playerWidth = player.sliding ? 58 : 42;
+      const playerHeight = player.sliding ? 34 : 68;
+      const playerTop = player.y - playerHeight;
+      const playerBottom = player.y;
+
+      for (const obstacle of obstacles) {
+        const sameLane = Math.abs(player.x - obstacle.x) < (playerWidth + obstacle.width) / 2;
+        const obstacleBottom = obstacle.y + 10;
+        const obstacleTop = obstacle.y - obstacle.height;
+
+        if (!sameLane) continue;
+
+        if (obstacle.type === "gate") {
+          const gateBottom = obstacle.y - 66;
+
+          if (!player.sliding && playerBottom > gateBottom && playerTop < obstacle.y) {
+            endGame();
+            return;
+          }
+        } else {
+          const touchingY = playerBottom > obstacleTop && playerTop < obstacleBottom;
+
+          if (touchingY) {
+            endGame();
+            return;
+          }
+        }
+      }
+
+      for (let i = coinItems.length - 1; i >= 0; i--) {
+        const coin = coinItems[i];
+        const sameLane = Math.abs(player.x - coin.x) < 42;
+        const nearY = Math.abs(player.y - coin.y) < 55;
+
+        if (sameLane && nearY) {
+          coins++;
+          score += 25;
+
+          for (let j = 0; j < 6; j++) {
+            createParticle(coin.x, coin.y, "#ffcf35");
+          }
+
+          coinItems.splice(i, 1);
+        }
+      }
+    }
+
+    function drawBackground() {
+      const sky = ctx.createLinearGradient(0, 0, 0, height);
+      sky.addColorStop(0, "#0b5277");
+      sky.addColorStop(0.55, "#0c3048");
+      sky.addColorStop(1, "#06131f");
+
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#12344b";
+
+      for (let i = 0; i < 15; i++) {
+        const buildingWidth = 50 + (i % 3) * 25;
+        const buildingHeight = 80 + (i % 5) * 30;
+        const x = i * 90 - 30;
+
+        ctx.fillRect(
+          x,
+          groundY() - buildingHeight - 100,
+          buildingWidth,
+          buildingHeight
+        );
+      }
+
+      ctx.fillStyle = "#f8c84b";
+      for (let i = 0; i < 30; i++) {
+        const x = (i * 73) % width;
+        const y = 80 + ((i * 47) % 190);
+        ctx.fillRect(x, y, 4, 6);
+      }
+    }
+
+    function drawRoad() {
+      const roadTop = groundY() - 180;
+
+      ctx.fillStyle = "#172631";
+      ctx.beginPath();
+      ctx.moveTo(width / 2 - 105, roadTop);
+      ctx.lineTo(width / 2 + 105, roadTop);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "#d49b35";
+      ctx.lineWidth = 5;
+
+      for (let lane = 0; lane < 3; lane++) {
+        const x = laneX(lane);
+        ctx.beginPath();
+        ctx.moveTo(width / 2 + (lane - 1) * 35, roadTop);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 3;
+
+      const dashSize = 38;
+      const gap = 80;
+      const offset = roadOffset % (dashSize + gap);
+
+      for (let y = roadTop - offset; y < height; y += dashSize + gap) {
+        const progress = (y - roadTop) / (height - roadTop);
+        const lineWidth = 8 + progress * 20;
+
+        for (let lane = 0; lane < 2; lane++) {
+          const x = width / 2 + (lane - 0.5) * laneGap();
+          ctx.fillRect(x - lineWidth / 2, y, lineWidth, dashSize);
+        }
+      }
+    }
+
+    function drawCoin(coin) {
+      ctx.save();
+      ctx.translate(coin.x, coin.y);
+      ctx.scale(Math.abs(Math.cos(coin.rotation)) * 0.75 + 0.25, 1);
+
+      ctx.fillStyle = "#ffcf35";
+      ctx.beginPath();
+      ctx.arc(0, 0, coin.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#fff0a3";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = "#986516";
+      ctx.font = "bold 14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("$", 0, 1);
+
+      ctx.restore();
+    }
+
+    function drawObstacle(obstacle) {
+      const x = obstacle.x;
+      const y = obstacle.y;
+
+      if (obstacle.type === "train") {
+        ctx.fillStyle = "#e24b43";
+        ctx.fillRect(x - 35, y - 100, 70, 100);
+
+        ctx.fillStyle = "#a8242d";
+        ctx.fillRect(x - 28, y - 78, 56, 35);
+
+        ctx.fillStyle = "#a9eaff";
+        ctx.fillRect(x - 22, y - 70, 18, 18);
+        ctx.fillRect(x + 4, y - 70, 18, 18);
+
+        ctx.fillStyle = "#ffd04a";
+        ctx.beginPath();
+        ctx.arc(x - 18, y - 16, 7, 0, Math.PI * 2);
+        ctx.arc(x + 18, y - 16, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (obstacle.type === "barrier") {
+        ctx.fillStyle = "#f07822";
+        ctx.fillRect(x - 31, y - 48, 62, 48);
+
+        ctx.fillStyle = "#ffe36a";
+        ctx.fillRect(x - 31, y - 36, 62, 10);
+
+        ctx.fillStyle = "#8d3b13";
+        ctx.fillRect(x - 25, y - 5, 10, 15);
+        ctx.fillRect(x + 15, y - 5, 10, 15);
+      }
+
+      if (obstacle.type === "gate") {
+        ctx.fillStyle = "#bd3e62";
+        ctx.fillRect(x - 35, y - 102, 70, 24);
+        ctx.fillRect(x - 35, y - 102, 12, 102);
+        ctx.fillRect(x + 23, y - 102, 12, 102);
+
+        ctx.fillStyle = "#ffd34e";
+        ctx.fillRect(x - 25, y - 94, 50, 7);
+      }
+    }
+
+    function drawPlayer() {
+      const x = player.x;
+      const y = player.y;
+      const bodyHeight = player.sliding ? 34 : 68;
+
+      ctx.save();
+      ctx.translate(x, y);
+
+      if (player.jumping) {
+        ctx.shadowColor = "#ffe15a";
+        ctx.shadowBlur = 22;
+      }
+
+      ctx.fillStyle = "#42d7ff";
+
+      if (player.sliding) {
+        ctx.fillRect(-31, -bodyHeight, 62, 25);
+        ctx.fillStyle = "#ffcf35";
+        ctx.beginPath();
+        ctx.arc(25, -22, 13, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-20, -bodyHeight + 18, 40, 48);
+
+        ctx.fillStyle = "#ffcf35";
+        ctx.beginPath();
+        ctx.arc(0, -bodyHeight + 8, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#082c47";
+        ctx.fillRect(-13, -bodyHeight + 3, 26, 7);
+
+        ctx.fillStyle = "#ff6d57";
+        ctx.fillRect(-19, -8, 14, 8);
+        ctx.fillRect(5, -8, 14, 8);
+      }
+
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      for (const particle of particles) {
+        ctx.globalAlpha = Math.max(0, particle.life * 2);
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+
+      drawBackground();
+      drawRoad();
+
+      for (const coin of coinItems) {
+        drawCoin(coin);
+      }
+
+      for (const obstacle of obstacles) {
+        drawObstacle(obstacle);
+      }
+
+      drawPlayer();
+      drawParticles();
+    }
+
+    function loop(time) {
+      if (!running) {
+        draw();
+        return;
+      }
+
+      const dt = Math.min((time - lastTime) / 1000, 0.035);
+      lastTime = time;
+
+      update(dt);
+      draw();
+
+      if (running) {
+        requestAnimationFrame(loop);
+      }
+    }
+
+    resizeCanvas();
+    draw();
+  </script>
+</body>
+</html>
